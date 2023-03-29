@@ -1,0 +1,5 @@
+ssl/ca-key.pem
+jitsi-meet-cfg/
+jitsi-openid/target
+jitsi-openid/.idea
+jitsi-openid/*.iml

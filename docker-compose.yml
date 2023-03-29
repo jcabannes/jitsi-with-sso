@@ -1,0 +1,144 @@
+version: "3.4"
+
+services:
+
+  redis:
+    image: redis
+    networks:
+      - sso
+
+  auth:
+    image: yadd/lemonldap-ng-portal
+    volumes:
+      - ./lemon/ssl.conf:/etc/nginx/sites-enabled/0000default.conf
+      - ./ssl:/etc/nginx/ssl
+    environment:
+      - SSODOMAIN=example.com
+      - PORTAL=https://auth.example.com
+      - LOGLEVEL=notice
+      - LOGGER=stderr
+      - USERLOGGER=stderr
+      - REDIS_SERVER=redis:6379
+    networks:
+      frontend:
+      sso:
+
+  haproxy:
+    image: haproxy:2.6-bullseye
+    ports:
+      - 443:443
+    volumes:
+      - ./haproxy:/usr/local/etc/haproxy:ro
+      - ./ssl/both.pem:/etc/ssl/certs/both.pem
+    sysctls:
+      - net.ipv4.ip_unprivileged_port_start=0
+    depends_on:
+      - auth
+    networks:
+      frontend:
+        aliases:
+          - auth.example.com
+
+  jitsi-web:
+    image: jitsi/web:stable-8319
+    restart: unless-stopped
+    ports:
+      - 8443:443
+    volumes:
+      - ./jitsi-meet-cfg/web:/config:Z
+      - ./jitsi-meet-cfg/web/crontabs:/var/spool/cron/crontabs:Z
+      - ./jitsi-meet-cfg/transcripts:/usr/share/jitsi-meet/transcripts:Z
+    environment:
+      - TZ=UTC
+      - ENABLE_AUTH=1
+    networks:
+      - meet.jitsi
+
+  jitsi-prosody:
+    image: jitsi/prosody:stable-8319
+    restart: unless-stopped
+    expose:
+      - 5222
+      - 5347
+      - 5280
+    volumes:
+      - ./jitsi-meet-cfg/prosody/config:/config:Z
+      - ./jitsi-meet-cfg/prosody/prosody-plugins-custom:/prosody-plugins-custom:Z
+    environment:
+      - JIBRI_RECORDER_PASSWORD=5250fe842da9b3decbf67c61a81704c3
+      - JIBRI_XMPP_PASSWORD=7ae37752673b7c05250828b2ec0edbc2
+      - JICOFO_AUTH_PASSWORD=0dd986d69df01800b7baeebb2a277530
+      - JIGASI_XMPP_PASSWORD=43ceecc3f24dc2241ebb2d27aa427d5b
+      - JVB_AUTH_PASSWORD=9714089ce45e86177fb0c9127f511b3d
+      - TZ=UTC
+      - ENABLE_AUTH=1
+      - AUTH_TYPE=jwt
+      - JWT_APP_ID=meet.example.com
+      - JWT_APP_SECRET=HDWsmGjq2kGvBAMWM8pK55mREgxgjVYywX2lJDNp3a8brNpWRNDvNlVvY2H9m16aRQfqCKMhgKdIv35AMCTj9xR1wBEqUPnHMFN4Eg2trHwnC5G2PCgcyo1O5U6Kz8Lm
+      - JWT_ACCEPTED_ISSUERS=jitsi
+      - JWT_ACCEPTED_AUDIENCES=jitsi
+      - TOKEN_AUTH_URL=http://localhost:3000/room/{room}
+    networks:
+      meet.jitsi:
+        aliases:
+          - xmpp.meet.jitsi
+
+  jicofo:
+    image: jitsi/jicofo:stable-8319
+    restart: unless-stopped
+    ports:
+      - 8888:8888
+    volumes:
+      - ./jitsi-meet-cfg/jicofo:/config:Z
+    environment:
+      - JICOFO_AUTH_PASSWORD=0dd986d69df01800b7baeebb2a277530
+      - SENTRY_DSN=0
+      - TZ=UTC
+      - ENABLE_AUTH=1
+      - AUTH_TYPE=jwt
+    depends_on:
+      - jitsi-prosody
+    networks:
+      - meet.jitsi
+
+  jitsi-video-bridge:
+    image: jitsi/jvb:stable-8319
+    restart: unless-stopped
+    ports:
+      - 10000:10000/udp
+      - 8080:8080
+    volumes:
+      - ./jitsi-meet-cfg/jvb:/config:Z
+    environment:
+      - JVB_AUTH_PASSWORD=9714089ce45e86177fb0c9127f511b3d
+      - SENTRY_DSN=0
+      - TZ=UTC
+    depends_on:
+      - jitsi-prosody
+    networks:
+      - meet.jitsi
+
+  jitsi-openid:
+    image: marcelcoding/jitsi-openid:latest
+    restart: always
+    ports:
+      - 3000:3000
+    environment:
+      - JITSI_SECRET=HDWsmGjq2kGvBAMWM8pK55mREgxgjVYywX2lJDNp3a8brNpWRNDvNlVvY2H9m16aRQfqCKMhgKdIv35AMCTj9xR1wBEqUPnHMFN4Eg2trHwnC5G2PCgcyo1O5U6Kz8Lm
+      - JITSI_URL=https://localhost:8443
+      - JITSI_SUB=meet.jitsi
+      - ISSUER_URL=https://auth.example.com
+      - BASE_URL=http://localhost:3000
+      - CLIENT_ID=jitsi
+      - CLIENT_SECRET=jitsi 
+    networks:
+      - meet.jitsi
+      - frontend
+
+networks:
+  sso:
+    name: sso
+  frontend:
+    name: frontend
+  meet.jitsi:
+    name: meet.jitsi

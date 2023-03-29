@@ -1,0 +1,35 @@
+FROM rust:slim AS builder
+
+ADD ssl/ca-cert.pem /usr/local/share/ca-certificates/ca-cert.pem
+RUN chmod 644 /usr/local/share/ca-certificates/ca-cert.pem
+RUN update-ca-certificates
+
+ENV USER=jitsi-openid
+ENV UID=10001
+
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/nonexistent" \
+    --shell "/sbin/nologin" \
+    --no-create-home \
+    --uid "${UID}" \
+    "${USER}"
+
+RUN cargo new --bin jitsi-openid
+
+WORKDIR /jitsi-openid
+
+COPY ./Cargo.lock ./Cargo.lock
+COPY ./Cargo.toml ./Cargo.toml
+
+RUN cargo build --release \
+ && rm src/*.rs target/release/deps/jitsi_openid*
+
+COPY ./src ./src
+RUN cargo build --release
+
+ENV LISTEN_ADDR=0.0.0.0:3000
+EXPOSE 3000
+
+CMD ["/jitsi-openid/target/release/jitsi-openid"]
