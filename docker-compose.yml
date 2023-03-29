@@ -119,7 +119,7 @@ services:
       - meet.jitsi
 
   jitsi-openid:
-    image: marcelcoding/jitsi-openid:latest
+    build: ./jitsi-openid
     restart: always
     ports:
       - 3000:3000
@@ -130,7 +130,10 @@ services:
       - ISSUER_URL=https://auth.example.com
       - BASE_URL=http://localhost:3000
       - CLIENT_ID=jitsi
-      - CLIENT_SECRET=jitsi 
+      - CLIENT_SECRET=jitsi
+    depends_on: 
+      - auth
+      - jicofo
     networks:
       - meet.jitsi
       - frontend

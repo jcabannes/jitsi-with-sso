@@ -1,7 +1,7 @@
-FROM rust:slim AS builder
+FROM rust:slim
 
-ADD ssl/ca-cert.pem /usr/local/share/ca-certificates/ca-cert.pem
-RUN chmod 644 /usr/local/share/ca-certificates/ca-cert.pem
+ADD ca-cert.pem /usr/local/share/ca-certificates/ca-cert.crt
+RUN chmod 644 /usr/local/share/ca-certificates/ca-cert.crt
 RUN update-ca-certificates
 
 ENV USER=jitsi-openid
